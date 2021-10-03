@@ -3,7 +3,6 @@
 #include <QTranslator>
 #include <iostream>
 #include "Lines.h"
-#include "SpinBox.h"
 
 #define WIDTH 830
 #define HEIGHT 600
@@ -11,7 +10,7 @@
 
 int main(int argc, char *argv[]) {
     QApplication a(argc, argv);
-    Lines window(0, 100, 0, -200, WIDTH, HEIGHT, COUNT);
+    Lines window(WIDTH, HEIGHT, COUNT);
     window.resize(WIDTH, HEIGHT);
     window.setWindowTitle("Lines");
     window.show();
