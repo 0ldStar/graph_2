@@ -1,16 +1,29 @@
 #include <QPainter>
 #include <iostream>
-#include <QWidget>
 #include <QTimer>
 #include <QKeyEvent>
 #include <windows.h>
 #include "Lines.h"
 
 
-Lines::Lines(int width, int height, int count)
-        : size{0, 0, 0, 0, width, height, count} {
+Lines::Lines(int width, int height, int count, vector<vector<int>> &arr, vector<vector<int>> &buf,
+             vector<vector<int>> &map)
+        : size{0, 0, 0, 0, width, height, count}, filter(arr), buf(buf), map(map) {
+    int arrSize = filter.size();
     spinBox = new SpinBox(this, count);
     flag = 0;
+    buf.resize(arrSize);
+    for (int i = 0; i < arrSize; ++i) buf[i].resize(arrSize);
+    map.resize(count + 1);
+    for (int i = 0; i <= count; ++i) map[i].resize(count + 1);
+
+    for (int i = 0; i < arrSize; ++i) {
+        for (int j = 0; j < arrSize; ++j) {
+            filter[i][j] = arr[i][j];
+            buf[i][j] = 0;
+        }
+    }
+    resize(width, height);
 }
 
 void Lines::keyPressEvent(QKeyEvent *event) {
@@ -25,22 +38,61 @@ void Lines::keyPressEvent(QKeyEvent *event) {
 void Lines::paintEvent(QPaintEvent *e) {
 
     Q_UNUSED(e);
-    updateDate();
+    updateData();
     QPainter qp(this);
     drawLines(qp);
-    std::cout << "-" << flag << std::endl;
+    drawMap(qp);
     if (flag == 0) drawLines(qp);
     else if (flag == 1) drawLines2(qp);
     else if (flag == 2) {
         drawLines(qp);
+        drawMap(qp);
         drawLines2(qp);
     }
+    drawMap(qp);
     drawRealLine(qp);
     drawGrid(qp);
     drawAxes(qp);
 }
 
-void Lines::updateDate() {
+void Lines::drawMap(QPainter &painter) {
+    int filterSize = filter.size();
+    int bigPixelCount = size.count / filterSize;
+    for (int i = 0; i < bigPixelCount; ++i) {
+        for (int j = 0; j < bigPixelCount; ++j) {
+            int weight = 0;
+            for (int k = i * filterSize, o = 0; k < i * filterSize + filterSize; ++k, ++o) {
+                for (int l = j * filterSize, p = 0; l < j * filterSize + filterSize; ++l, ++p) {
+                    weight += map[k][l + 1] * filter[o][p];
+                }
+            }
+            if (weight != 0) {
+                drawBigPixel(i, j, weight, painter);
+            }
+        }
+    }
+    mapClean();
+}
+
+void Lines::drawBigPixel(int x, int y, int weight, QPainter &painter) {
+    int bigPixelCount = size.count / filter.size();
+    double dx = (float) size.width / (float) bigPixelCount;
+    double dy = (float) size.height / (float) bigPixelCount;
+    QColor color(weight * 25 + 25, 10, 0);
+    painter.setBrush(QBrush(color));
+    painter.setPen(color);
+    painter.drawRect(x * dx, y * dy, dx, dy);
+}
+
+void Lines::mapClean() {
+    for (int i = 0; i <= size.count; ++i) {
+        for (int j = 0; j <= size.count; ++j) {
+            map[i][j] = 0;
+        }
+    }
+}
+
+void Lines::updateData() {
     size.x1 = spinBox->getX1();
     size.x2 = spinBox->getX2();
     size.y1 = spinBox->getY1();
@@ -48,10 +100,9 @@ void Lines::updateDate() {
 }
 
 void Lines::drawLines2(QPainter &painter) {
-    painter.setBrush(QBrush(Qt::red));
-    painter.setPen(Qt::red);
     drawCDA(painter);
 }
+
 
 void Lines::drawLines(QPainter &painter) {
     painter.setBrush(QBrush(Qt::darkBlue));
@@ -59,7 +110,7 @@ void Lines::drawLines(QPainter &painter) {
     drawBrezenham(painter);
 }
 
-void Lines::drawRealLine(QPainter &painter) {
+void Lines::drawRealLine(QPainter &painter) const {
     int x1, x2, y1, y2;
     double dx = (float) size.width / (float) size.count;
     double dy = (float) size.height / (float) size.count;
@@ -73,7 +124,7 @@ void Lines::drawRealLine(QPainter &painter) {
     painter.drawLine(x1, y1, x2, y2);
 }
 
-void Lines::drawGrid(QPainter &painter) {
+void Lines::drawGrid(QPainter &painter) const {
     painter.setPen(Qt::black);
     painter.setPen(Qt::DotLine);
 
@@ -89,7 +140,7 @@ void Lines::drawGrid(QPainter &painter) {
     }
 }
 
-void Lines::drawAxes(QPainter &painter) {
+void Lines::drawAxes(QPainter &painter) const {
     QPen pen;
     pen.setColor("red");
     pen.setWidth(3);
@@ -108,10 +159,13 @@ int sign(double x) {
         return -1;
 }
 
-void Lines::drawPixel(int x, int y, QPainter &painter) {
+
+void Lines::drawMediumPixel(int x, int y, QPainter &painter) {
     double dx = (float) size.width / (float) size.count;
     double dy = (float) size.height / (float) size.count;
-
+    QColor color(256, 0, 256);
+    painter.setBrush(QBrush(color));
+    painter.setPen(color);
     painter.drawRect(x * dx, y * dy - dy, dx, dy);
 }
 
@@ -130,7 +184,7 @@ void Lines::drawCDA(QPainter &painter) {
     if (l == 0) return;
     for (int i = 0; i <= l; ++i) {
         decardToDigital(floor(x), floor(y), _x, _y);
-        drawPixel(_x, _y, painter);
+        map[_x][_y] = 1;
         x = x + dx;
         y = y + dy;
     }
@@ -161,7 +215,7 @@ void Lines::drawBrezenham(QPainter &painter) {
     if (sy < 0)y = size.y1 + sy;
     for (int i = 0; i <= abs(dx); i++) {
         decardToDigital(x, y, _x, _y);
-        drawPixel(_x, _y, painter);
+        map[_x][_y] = 1;
         while (e >= 0) {
             if (b == 1)x = x + sx;
             else y = y + sy;
@@ -181,16 +235,8 @@ void Lines::decardToDigital1(int x, int y, int &X, int &Y, int width, int height
 }
 
 
-void Lines::decardToDigital(int x, int y, int &X, int &Y) {
+void Lines::decardToDigital(int x, int y, int &X, int &Y) const {
     X = (size.count / 2 + x);
     Y = (size.count / 2 - y);
 }
 
-void Lines::digitalToDecard(int x, int y, int &X, int &Y, int width, int height) {
-    if (x > width / 2) X = x - width / 2;
-    else
-        X = -(width / 2 - x);
-    if (y > height / 2) Y = -(y - height / 2);
-    else
-        Y = height / 2 - y;
-}

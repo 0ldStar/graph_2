@@ -11,7 +11,7 @@ set(QT_VERSION 6)
 set(REQUIRED_LIBS Core Gui Widgets OpenGLWidgets)
 set(REQUIRED_LIBS_QUALIFIED Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGLWidgets)
 
-add_executable(${PROJECT_NAME} main.cpp Lines.cpp Lines.h sizes.h SpinBox.cpp SpinBox.h)
+add_executable(${PROJECT_NAME} main.cpp Lines.cpp Lines.h sizes.h SpinBox.cpp SpinBox.h filters.h)
 target_link_libraries(${PROJECT_NAME} -lglu32 -lopengl32)
 
 if (NOT CMAKE_PREFIX_PATH)
